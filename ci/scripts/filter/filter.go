@@ -88,13 +88,21 @@ func write(out io.Writer, lines ...string) {
 }
 
 func Filter(in io.Reader, out io.Writer) {
-	scanner := bufio.NewScanner(in)
+	reader := bufio.NewReader(in)
 
 	var buf []string // lines buffered for look-ahead
 
 nextline:
-	for scanner.Scan() {
-		line := scanner.Text()
+	for {
+		line, err := reader.ReadString('\n')
+		line = strings.TrimSuffix(line, string('\n'))
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			log.Fatalf("scanning stdin: %+v", err)
+		}
 
 		// First filter on a line-by-line basis.
 		for _, r := range lineRegexes {
@@ -129,10 +137,6 @@ nextline:
 		}
 
 		write(out, line)
-	}
-
-	if scanner.Err() != nil {
-		log.Fatalf("scanning stdin: %+v", scanner.Err())
 	}
 
 	// Flush our buffer.
