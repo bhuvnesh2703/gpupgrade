@@ -59,6 +59,16 @@ func init() {
 	}
 }
 
+func writeBufAndLine(out io.Writer, buf *[]string, line string) {
+	// We want to keep this line. Flush and empty our buffer first.
+	if len(*buf) > 0 {
+		write(out, *buf...)
+		*buf = (*buf)[:0]
+	}
+
+	write(out, line)
+}
+
 func write(out io.Writer, lines ...string) {
 	for _, line := range lines {
 		_, err := fmt.Fprintln(out, line)
@@ -76,9 +86,24 @@ func Filter(in io.Reader, out io.Writer) {
 
 	var buf []string // lines buffered for look-ahead
 
+	// temporary storage for view/rule ddl processing
+	var allTokens []string
+	var formattingViewOrRuleDdlStmt = false
+
 nextline:
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		if formattingViewOrRuleDdlStmt || filters.StartFormattingViewOrRuleDdlStmtIfExisting(buf, line) {
+			formattingViewOrRuleDdlStmt = true
+			completeDdl, finishedFormatting := filters.BuildViewOrRuleDdl(line, &allTokens)
+			if finishedFormatting {
+				writeBufAndLine(out, &buf, completeDdl)
+				formattingViewOrRuleDdlStmt = false
+				allTokens = nil
+			}
+			continue nextline
+		}
 
 		// First filter on a line-by-line basis.
 		for _, r := range lineRegexes {
@@ -104,13 +129,7 @@ nextline:
 
 		line = filters.FormatWithClauseIfExisting(line)
 
-		// We want to keep this line. Flush and empty our buffer first.
-		if len(buf) > 0 {
-			write(out, buf...)
-			buf = buf[:0]
-		}
-
-		write(out, line)
+		writeBufAndLine(out, &buf, line)
 	}
 
 	if scanner.Err() != nil {
