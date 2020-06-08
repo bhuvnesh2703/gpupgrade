@@ -1,29 +1,23 @@
 // Copyright (c) 2017-2020 VMware, Inc. or its affiliates
 // SPDX-License-Identifier: Apache-2.0
+
 package filters
 
-import "regexp"
-
-var (
-	// regex for partition table with clause
-	singleQuoteRegex              *regexp.Regexp
-	partitionTableWithClauseRegex *regexp.Regexp
+import (
+	"regexp"
+	"strings"
 )
 
-func init() {
-	singleQuoteRegex = regexp.MustCompile("'")
-	partitionTableWithClauseRegex = regexp.MustCompile(`(.+)WITH \(tablename='(.[^,]*?)', (.*) \)(\,*)`)
-}
+var WithClauseRegex = `(.*WITH\s\(tablename[^,]*,)(.*)`
 
-func FormatWithClauseIfExisting(line string) string {
-	result := partitionTableWithClauseRegex.FindAllStringSubmatch(line, -1)
+func FormatWithClauseIfExisting(re *regexp.Regexp, line string) string {
+	result := re.FindAllStringSubmatch(line, -1)
 	if result == nil {
 		return line
 	}
 	groups := result[0]
-	stringWithTableReplacement := "WITH (tablename='" + groups[2] + "'"
 	// replace all occurrences of single quotes
-	stringWithoutSingleQuotes := singleQuoteRegex.ReplaceAllString(groups[3], "")
+	stringWithoutSingleQuotes := strings.ReplaceAll(groups[2], "'", "")
 
-	return groups[1] + stringWithTableReplacement + ", " + stringWithoutSingleQuotes + " )" + groups[4]
+	return groups[1] + stringWithoutSingleQuotes
 }

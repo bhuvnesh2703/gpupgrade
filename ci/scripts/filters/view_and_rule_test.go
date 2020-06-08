@@ -1,8 +1,10 @@
 // Copyright (c) 2017-2020 VMware, Inc. or its affiliates
 // SPDX-License-Identifier: Apache-2.0
+
 package filters
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -14,6 +16,7 @@ func TestBuildViewOrRuleDdl(t *testing.T) {
 	type result struct {
 		line               string
 		finishedFormatting bool
+		resultTokens       []string
 	}
 	tests := []struct {
 		name   string
@@ -28,6 +31,7 @@ func TestBuildViewOrRuleDdl(t *testing.T) {
 			},
 			result: result{
 				line:               "CREATE VIEW myview AS\nSELECT name FROM mytable;",
+				resultTokens:       []string{"CREATE", "VIEW", "myview", "AS", "SELECT", "name", "FROM", "mytable;"},
 				finishedFormatting: true,
 			},
 		},
@@ -39,17 +43,21 @@ func TestBuildViewOrRuleDdl(t *testing.T) {
 			},
 			result: result{
 				finishedFormatting: false,
+				resultTokens:       []string{"CREATE", "VIEW", "myview", "AS"},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			completeDdl, finishedFormatting := BuildViewOrRuleDdl(tt.args.line, &tt.args.allTokens)
+			completeDdl, resultTokens, finishedFormatting := BuildViewOrRuleDdl(tt.args.line, tt.args.allTokens)
 			if completeDdl != tt.result.line {
-				t.Errorf("got = %v, want %v", completeDdl, tt.result.line)
+				t.Errorf("got %v, want %v", completeDdl, tt.result.line)
 			}
 			if finishedFormatting != tt.result.finishedFormatting {
-				t.Errorf("got = %t, want %t", finishedFormatting, tt.result.finishedFormatting)
+				t.Errorf("got %t, want %t", finishedFormatting, tt.result.finishedFormatting)
+			}
+			if !reflect.DeepEqual(resultTokens, tt.result.resultTokens) {
+				t.Errorf("got %q, want %q", resultTokens, tt.result.resultTokens)
 			}
 		})
 	}
@@ -75,13 +83,13 @@ func TestFormatViewOrRuleDdl(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := FormatViewOrRuleDdl(tt.allTokens); got != tt.want {
-				t.Errorf("got %v, want %v", got, tt.want)
+				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestStartFormattingViewOrRuleDdlStmtIfExisting(t *testing.T) {
+func TestIsViewOrRuleDdl(t *testing.T) {
 	type args struct {
 		buf  []string
 		line string
@@ -126,8 +134,8 @@ func TestStartFormattingViewOrRuleDdlStmtIfExisting(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := StartFormattingViewOrRuleDdlStmtIfExisting(tt.args.buf, tt.args.line); got != tt.want {
-				t.Errorf("StartFormattingViewOrRuleDdlStmtIfExisting() = %v, want %v", got, tt.want)
+			if got := IsViewOrRuleDdl(tt.args.buf, tt.args.line); got != tt.want {
+				t.Errorf("got %t, want %t", got, tt.want)
 			}
 		})
 	}

@@ -1,8 +1,12 @@
 // Copyright (c) 2017-2020 VMware, Inc. or its affiliates
 // SPDX-License-Identifier: Apache-2.0
+
 package filters
 
-import "testing"
+import (
+	"regexp"
+	"testing"
+)
 
 func Test_FormatWithClauseIfExisting(t *testing.T) {
 	tests := []struct {
@@ -22,9 +26,10 @@ func Test_FormatWithClauseIfExisting(t *testing.T) {
 		},
 	}
 
+	re := regexp.MustCompile(WithClauseRegex)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := FormatWithClauseIfExisting(tt.input); got != tt.result {
+			if got := FormatWithClauseIfExisting(re, tt.input); got != tt.result {
 				t.Errorf("got %v, want %v", got, tt.result)
 			}
 		})

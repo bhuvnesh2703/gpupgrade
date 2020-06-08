@@ -36,6 +36,7 @@ import (
 
 var lineRegexes []*regexp.Regexp
 var blockRegexes []*regexp.Regexp
+var replacements []*filters.Replacer
 
 func init() {
 	// linePatterns remove exactly what is matched, on a line-by-line basis.
@@ -52,22 +53,36 @@ func init() {
 		"COMMENT ON DATABASE postgres IS",
 	}
 
+	// replacementPatterns is a map of regex and replacement func
+	replacementPatterns := map[string]func(*regexp.Regexp, string) string{
+		filters.WithClauseRegex: filters.FormatWithClauseIfExisting,
+	}
+
 	for _, pattern := range linePatterns {
 		lineRegexes = append(lineRegexes, regexp.MustCompile(pattern))
 	}
 	for _, pattern := range blockPatterns {
 		blockRegexes = append(blockRegexes, regexp.MustCompile(pattern))
 	}
+
+	for regex, replacementFunc := range replacementPatterns {
+		replacements = append(replacements, &filters.Replacer{
+			Regex:           regexp.MustCompile(regex),
+			ReplacementFunc: replacementFunc,
+		})
+	}
 }
 
-func writeBufAndLine(out io.Writer, buf *[]string, line string) {
+func writeBufAndLine(out io.Writer, buf []string, line string) []string {
 	// We want to keep this line. Flush and empty our buffer first.
-	if len(*buf) > 0 {
-		write(out, *buf...)
-		*buf = (*buf)[:0]
+	if len(buf) > 0 {
+		write(out, buf...)
+		buf = (buf)[:0]
 	}
 
 	write(out, line)
+
+	return buf
 }
 
 func write(out io.Writer, lines ...string) {
@@ -95,14 +110,16 @@ nextline:
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if formattingViewOrRuleDdlStmt || filters.StartFormattingViewOrRuleDdlStmtIfExisting(buf, line) {
+		if formattingViewOrRuleDdlStmt || filters.IsViewOrRuleDdl(buf, line) {
 			formattingViewOrRuleDdlStmt = true
-			completeDdl, finishedFormatting := filters.BuildViewOrRuleDdl(line, &allTokens)
+			completeDdl, resultTokens, finishedFormatting := filters.BuildViewOrRuleDdl(line, allTokens)
+			allTokens = resultTokens
 			if finishedFormatting {
-				writeBufAndLine(out, &buf, completeDdl)
+				buf = writeBufAndLine(out, buf, completeDdl)
 				formattingViewOrRuleDdlStmt = false
 				allTokens = nil
 			}
+
 			continue nextline
 		}
 
@@ -128,9 +145,11 @@ nextline:
 			}
 		}
 
-		line = filters.FormatWithClauseIfExisting(line)
+		for _, r := range replacements {
+			line = r.Replace(line)
+		}
 
-		writeBufAndLine(out, &buf, line)
+		buf = writeBufAndLine(out, buf, line)
 	}
 
 	if scanner.Err() != nil {

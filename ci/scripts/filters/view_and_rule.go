@@ -1,5 +1,6 @@
 // Copyright (c) 2017-2020 VMware, Inc. or its affiliates
 // SPDX-License-Identifier: Apache-2.0
+
 package filters
 
 import (
@@ -9,19 +10,17 @@ import (
 
 var (
 	// regex for views/rule transformation
-	spaceBetweenOpenBracketAndCharRegex *regexp.Regexp
-	spaceBetweenCloseBracketRegex       *regexp.Regexp
-	ruleOrViewCommentRegex              *regexp.Regexp
-	ruleOrViewCreateRegex               *regexp.Regexp
-	viewReplacementRegex                []*replacer
+	ruleOrViewCommentRegex *regexp.Regexp
+	ruleOrViewCreateRegex  *regexp.Regexp
+	viewReplacementRegex   []*viewReplacer
 )
 
-type replacer struct {
+type viewReplacer struct {
 	Regex       *regexp.Regexp
 	Replacement string
 }
 
-func (t *replacer) replace(line string) string {
+func (t *viewReplacer) replace(line string) string {
 	return t.Regex.ReplaceAllString(line, t.Replacement)
 }
 
@@ -37,46 +36,47 @@ var viewReplacementPatterns = map[string]string{
 }
 
 func init() {
-	spaceBetweenOpenBracketAndCharRegex = regexp.MustCompile(`\(\s`)
-	spaceBetweenCloseBracketRegex = regexp.MustCompile(`\)\s\)`)
 	ruleOrViewCommentRegex = regexp.MustCompile(`; Type: (VIEW|RULE);`)
 	ruleOrViewCreateRegex = regexp.MustCompile(`CREATE (VIEW|RULE)`)
 
 	for regex, replacement := range viewReplacementPatterns {
-		viewReplacementRegex = append(viewReplacementRegex, &replacer{
+		viewReplacementRegex = append(viewReplacementRegex, &viewReplacer{
 			Regex:       regexp.MustCompile(regex),
 			Replacement: replacement,
 		})
 	}
 }
 
-func StartFormattingViewOrRuleDdlStmtIfExisting(buf []string, line string) bool {
+func IsViewOrRuleDdl(buf []string, line string) bool {
 	return len(buf) > 0 && ruleOrViewCommentRegex.MatchString(strings.Join(buf[:], " ")) && ruleOrViewCreateRegex.MatchString(line)
 }
 
 func FormatViewOrRuleDdl(allTokens []string) string {
 	var line string
 	if allTokens[1] == "RULE" {
-		line = strings.Join(allTokens[:], " ")
+		line = strings.Join(allTokens, " ")
 	} else {
+		// split the view definition into 2 lines
+		// line 1: CREATE VIEW myview AS (4 elements)
+		// line 2: BODY of the view... (remaining elements)
 		line = strings.Join(allTokens[:4], " ") + "\n" + strings.Join(allTokens[4:], " ")
 		for _, r := range viewReplacementRegex {
 			line = r.replace(line)
 		}
 	}
-	line = spaceBetweenOpenBracketAndCharRegex.ReplaceAllString(line, `(`)
-	line = spaceBetweenCloseBracketRegex.ReplaceAllString(line, `))`)
+	line = strings.ReplaceAll(line, "( ", "(")
+	line = strings.ReplaceAll(line, ") )", "))")
 	return line
 }
 
-func BuildViewOrRuleDdl(line string, allTokens *[]string) (string, bool) {
+func BuildViewOrRuleDdl(line string, allTokens []string) (string, []string, bool) {
 	tokens := strings.Fields(line)
-	*allTokens = append(*allTokens, tokens...)
+	allTokens = append(allTokens, tokens...)
 	formattingFinished := false
 	// if the DDL terminator exists process the whole DDL statement
 	if strings.Contains(line, ";") {
 		formattingFinished = true
-		return FormatViewOrRuleDdl(*allTokens), formattingFinished
+		return FormatViewOrRuleDdl(allTokens), allTokens, formattingFinished
 	}
-	return "", formattingFinished
+	return "", allTokens, formattingFinished
 }
