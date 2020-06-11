@@ -106,6 +106,7 @@ ssh mdw bash <<EOF
     set -eux -o pipefail
 
     source ${GPHOME_NEW}/greenplum_path.sh
+    export MASTER_DATA_DIRECTORY=/data/gpdata/master/gpseg-1
     gpconfig -c bytea_output -v escape
     gpstop -u
 EOF
