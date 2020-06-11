@@ -99,6 +99,17 @@ time ssh mdw bash <<EOF
     gpupgrade finalize
 EOF
 
+# set the value of databases GUCs
+# bytea_output -> by default for bytea the output format is hex on GPDB 6,
+# change it to escape to match GPDB 5 representation
+ssh mdw bash <<EOF
+    set -eux -o pipefail
+
+    source ${GPHOME_NEW}/greenplum_path.sh
+    gpconfig -c bytea_output -v escape
+    gpstop -u
+EOF
+
 # TODO: how do we know the cluster upgraded?  5 to 6 is a version check; 6 to 6 ?????
 #   currently, it's sleight of hand...old is on port $MASTER_PORT then new is!!!!
 #   perhaps use the controldata("pg_controldata $MASTER_DATA_DIR") system identifier?
