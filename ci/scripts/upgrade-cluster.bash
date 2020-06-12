@@ -5,6 +5,27 @@
 
 set -eux -o pipefail
 
+# set the database gucs
+# 1. bytea_output: by default for bytea the output format is hex on GPDB 6,
+#    so change it to escape to match GPDB 5 representation
+configure_gpdb6_gucs() {
+    local gphome=$1
+    ssh mdw bash <<EOF
+        set -eux -o pipefail
+
+        source ${gphome}/greenplum_path.sh
+        export MASTER_DATA_DIRECTORY=/data/gpdata/master/gpseg-1
+        gpconfig -c bytea_output -v escape
+        gpstop -u
+EOF
+}
+
+is_6x_version() {
+    local gphome=$1
+    IS_GPDB6=$(ssh mdw "source ${gphome}/greenplum_path.sh && psql -d template1 -At -c \"SELECT version() LIKE '%Greenplum Database 6%'\"")
+    echo ${IS_GPDB6}
+}
+
 dump_sql() {
     local port=$1
     local dumpfile=$2
@@ -74,6 +95,11 @@ for host in "${hosts[@]}"; do
     ssh centos@$host "sudo mv /tmp/gpupgrade /usr/local/bin"
 done
 
+# On 6x, set the gucs before taking dumps
+if [[ `is_6x_version ${GPHOME_OLD}` == "t" ]] ; then
+    configure_gpdb6_gucs ${GPHOME_OLD}
+fi
+
 # Dump the old cluster for later comparison.
 dump_sql $MASTER_PORT /tmp/old.sql
 
@@ -99,17 +125,10 @@ time ssh mdw bash <<EOF
     gpupgrade finalize
 EOF
 
-# set the value of databases GUCs
-# bytea_output -> by default for bytea the output format is hex on GPDB 6,
-# change it to escape to match GPDB 5 representation
-ssh mdw bash <<EOF
-    set -eux -o pipefail
-
-    source ${GPHOME_NEW}/greenplum_path.sh
-    export MASTER_DATA_DIRECTORY=/data/gpdata/master/gpseg-1
-    gpconfig -c bytea_output -v escape
-    gpstop -u
-EOF
+# On 6x, set the gucs before taking dumps
+if [[ `is_6x_version ${GPHOME_NEW}` == "t" ]] ; then
+    configure_gpdb6_gucs ${GPHOME_NEW}
+fi
 
 # TODO: how do we know the cluster upgraded?  5 to 6 is a version check; 6 to 6 ?????
 #   currently, it's sleight of hand...old is on port $MASTER_PORT then new is!!!!
