@@ -31,6 +31,7 @@ func init() {
 
 	replacementFuncs = []ReplacementFunc{
 		FormatWithClause,
+		ReplacePrecision,
 	}
 
 	// patten matching functions and corresponding formatting functions
