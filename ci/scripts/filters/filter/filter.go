@@ -23,11 +23,44 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
 
 	"github.com/greenplum-db/gpupgrade/ci/scripts/filters"
 )
 
+var (
+	version6 = 6
+	argCount = 2
+)
+
 func main() {
-	filters.Filter6x(os.Stdin, os.Stdout)
+	var (
+		version   int
+		inputFile string
+	)
+
+	flag.IntVar(&version, "version", 0, "input file contains dump of greenplum version 5 or 6")
+	flag.StringVar(&inputFile, "inputFile", "", "fully qualified input file name containing the dump")
+	flag.Parse()
+
+	if flag.NFlag() != argCount {
+		fmt.Printf("requires %d arguments, got %d\n", argCount, flag.NFlag())
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if version != version6 {
+		fmt.Printf("permitted -version values is: %d. but got %d", version6, version)
+		os.Exit(1)
+	}
+
+	in, err := os.Open(inputFile)
+	if err != nil {
+		fmt.Print(fmt.Errorf("%s: %w", inputFile, err))
+		os.Exit(1)
+	}
+
+	filters.Filter6x(in, os.Stdout)
 }
