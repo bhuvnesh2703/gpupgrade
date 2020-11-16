@@ -15,7 +15,6 @@ func Init6x() {
 		// pattern, and we might have to do a look ahead to really identify
 		// if it can be deleted.
 		`START WITH \d`,
-		`SELECT f1 FROM test_invalid_schema_creation_tab;`,
 	}
 
 	// blockPatterns remove lines that match, AND any comments or whitespace

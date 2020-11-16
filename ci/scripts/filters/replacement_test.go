@@ -25,11 +25,6 @@ func TestReplaceBitTypeInDDL(t *testing.T) {
 			line: `a39 bit(1) DEFAULT B'0'::"bit" ENCODING`,
 			want: `a39 bit(1) DEFAULT B'0'::"bit" ENCODING`,
 		},
-		{
-			name: `replaces create view statement`,
-			line: `CREATE VIEW test_invalid_schema_creation_tab_v1 AS`,
-			want: `		CREATE VIEW test_invalid_schema_creation_tab_v1 AS SELECT f1 FROM test_invalid_schema_creation_tab;`,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

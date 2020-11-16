@@ -29,7 +29,6 @@ func InitReplacementRegex(patterns map[string]string) []*Replacer {
 func Replacements(line string) string {
 	patterns := map[string]string{
 		`(DEFAULT.*[^B])('\d+')::"bit"`: `${1}B${2}::"bit"`,
-		`CREATE VIEW test_invalid_schema_creation_tab_v1 AS`: `		CREATE VIEW test_invalid_schema_creation_tab_v1 AS SELECT f1 FROM test_invalid_schema_creation_tab;`,
 	}
 
 	replacer := InitReplacementRegex(patterns)
