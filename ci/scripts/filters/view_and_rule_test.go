@@ -49,30 +49,44 @@ func TestFormatViewOrRuleDdl(t *testing.T) {
 }
 
 func TestIsViewOrRuleDdl(t *testing.T) {
+	type args struct {
+		buf  []string
+		line string
+	}
 	tests := []struct {
 		name   string
-		line   string
+		args   args
 		result bool
 	}{
 		{
-			name:   "line contains create view statement",
-			line:   "CREATE VIEW myview AS",
+			name: "line contains create view statement",
+			args: args{
+				buf:  []string{"-- Name: myview; Type: VIEW; Schema: public; Owner: gpadmin"},
+				line: "CREATE VIEW myview AS",
+			},
 			result: true,
 		},
 		{
-			name:   "line contains create rule statement",
-			line:   "CREATE RULE myrule AS",
+			name: "line contains create rule statement",
+			args: args{
+				buf:  []string{"-- Name: myrule; Type: RULE; Schema: public; Owner: gpadmin"},
+				line: "CREATE RULE myrule AS",
+			},
+
 			result: true,
 		},
 		{
-			name:   "buffer does not contains view / rule identifier",
-			line:   "CREATE TABLE mytable AS",
+			name: "buffer does not contains view / rule identifier",
+			args: args{
+				buf:  []string{"-- Name: myrule; Type: TABLE; Schema: public; Owner: gpadmin"},
+				line: "CREATE TABLE mytable AS",
+			},
 			result: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsViewOrRuleDdl(tt.line); got != tt.result {
+			if got := IsViewOrRuleDdl(tt.args.buf, tt.args.line); got != tt.result {
 				t.Errorf("got %t, want %t", got, tt.result)
 			}
 		})

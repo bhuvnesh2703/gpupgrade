@@ -45,25 +45,35 @@ func TestFormatTriggerDdl(t *testing.T) {
 }
 
 func TestIsTriggerDdl(t *testing.T) {
+	type args struct {
+		buf  []string
+		line string
+	}
 	tests := []struct {
 		name   string
-		line   string
+		args   args
 		result bool
 	}{
 		{
-			name:   "line contains create trigger statement",
-			line:   "CREATE TRIGGER mytrigger AS",
+			name: "line contains create trigger statement",
+			args: args{
+				buf:  []string{"-- Name: mytrigger; Type: TRIGGER; Schema: public; Owner: gpadmin"},
+				line: "CREATE TRIGGER mytrigger AS",
+			},
 			result: true,
 		},
 		{
-			name:   "line does not create trigger statement",
-			line:   "CREATE TABLE mytable AS",
+			name: "line does not create trigger statement",
+			args: args{
+				buf:  []string{"-- Name: mytable; Type: TABLE; Schema: public; Owner: gpadmin"},
+				line: "CREATE TABLE mytable AS",
+			},
 			result: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsTriggerDdl(tt.line); got != tt.result {
+			if got := IsTriggerDdl(tt.args.buf, tt.args.line); got != tt.result {
 				t.Errorf("got %t, want %t", got, tt.result)
 			}
 		})
