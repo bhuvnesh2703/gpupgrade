@@ -34,6 +34,10 @@ type Cluster struct {
 	// check for key existence.
 	Mirrors map[int]SegConfig
 
+	// Tablespaces contains the tablespace in the database keyed by
+	// dbid and tablespace oid
+	Tablespaces Tablespaces
+
 	GPHome  string
 	Version dbconn.GPDBVersion
 }

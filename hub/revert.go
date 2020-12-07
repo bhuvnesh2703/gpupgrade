@@ -74,7 +74,7 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 		})
 
 		st.Run(idl.Substep_DELETE_TABLESPACES, func(streams step.OutStreams) error {
-			return DeleteTargetTablespaces(streams, s.agentConns, s.Config.Target, s.TargetCatalogVersion, s.Tablespaces)
+			return DeleteTargetTablespaces(streams, s.agentConns, s.Config.Target, s.TargetCatalogVersion, s.Source.Tablespaces)
 		})
 	}
 
@@ -102,7 +102,7 @@ func (s *Server) Revert(_ *idl.RevertRequest, stream idl.CliToHub_RevertServer) 
 					return err
 				}
 
-				return RsyncMasterAndPrimariesTablespaces(stream, s.agentConns, s.Source, s.Tablespaces)
+				return RsyncMasterAndPrimariesTablespaces(stream, s.agentConns, s.Source, s.Source.Tablespaces)
 			})
 		}
 	}

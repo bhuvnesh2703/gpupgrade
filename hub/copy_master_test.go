@@ -38,14 +38,14 @@ func RsyncFailure() {
 }
 
 func init() {
+	testlog.SetupLogger()
+
 	exectest.RegisterMains(
 		RsyncFailure,
 	)
 }
 
 func TestCopy(t *testing.T) {
-	testlog.SetupLogger()
-
 	t.Run("copies the directory only once per host", func(t *testing.T) {
 
 		sourceDir := []string{"/data/qddir/seg-1/"}
@@ -198,48 +198,47 @@ func TestCopyMasterDataDir(t *testing.T) {
 }
 
 func TestCopyMasterTablespaces(t *testing.T) {
-	targetCluster := MustCreateCluster(t, []greenplum.SegConfig{
-		{ContentID: -1, DbID: 1, Port: 15432, Hostname: "localhost", DataDir: "/data/qddir/seg-1", Role: "p"},
-		{ContentID: 0, DbID: 2, Port: 25432, Hostname: "host1", DataDir: "/data/dbfast1/seg1", Role: "p"},
-		{ContentID: 1, DbID: 3, Port: 25433, Hostname: "host2", DataDir: "/data/dbfast2/seg2", Role: "p"},
-	})
+	conf := &Config{
+		Source: &greenplum.Cluster{},
+		Target: MustCreateCluster(t, []greenplum.SegConfig{
+			{ContentID: -1, DbID: 1, Port: 15432, Hostname: "localhost", DataDir: "/data/qddir/seg-1", Role: "p"},
+			{ContentID: 0, DbID: 2, Port: 25432, Hostname: "host1", DataDir: "/data/dbfast1/seg1", Role: "p"},
+			{ContentID: 1, DbID: 3, Port: 25433, Hostname: "host2", DataDir: "/data/dbfast2/seg2", Role: "p"},
+		}),
+		TablespacesMappingFilePath: "/tmp/mapping.txt",
+	}
 
 	t.Run("copies tablespace mapping file and master tablespace directory to each primary host", func(t *testing.T) {
-		conf := &Config{
-			Target: targetCluster,
-			Tablespaces: greenplum.Tablespaces{
-				1: greenplum.SegmentTablespaces{
-					1663: greenplum.TablespaceInfo{
-						Location:    "/tmp/tblspc1",
-						UserDefined: 0},
-					1664: greenplum.TablespaceInfo{
-						Location:    "/tmp/tblspc2",
-						UserDefined: 1},
-				},
-				2: greenplum.SegmentTablespaces{
-					1663: greenplum.TablespaceInfo{
-						Location:    "/tmp/primary1/tblspc1",
-						UserDefined: 0},
-					1664: greenplum.TablespaceInfo{
-						Location:    "/tmp/primary1/tblspc2",
-						UserDefined: 1},
-				},
-				3: greenplum.SegmentTablespaces{
-					1663: greenplum.TablespaceInfo{
-						Location:    "/tmp/primary2/tblspc1",
-						UserDefined: 0},
-					1664: greenplum.TablespaceInfo{
-						Location:    "/tmp/primary2/tblspc2",
-						UserDefined: 1},
-				},
+		conf.Source.Tablespaces = greenplum.Tablespaces{
+			1: greenplum.SegmentTablespaces{
+				1663: greenplum.TablespaceInfo{
+					Location:    "/tmp/tblspc1",
+					UserDefined: 0},
+				1664: greenplum.TablespaceInfo{
+					Location:    "/tmp/tblspc2",
+					UserDefined: 1},
 			},
-			TablespacesMappingFilePath: "/tmp/mapping.txt",
+			2: greenplum.SegmentTablespaces{
+				1663: greenplum.TablespaceInfo{
+					Location:    "/tmp/primary1/tblspc1",
+					UserDefined: 0},
+				1664: greenplum.TablespaceInfo{
+					Location:    "/tmp/primary1/tblspc2",
+					UserDefined: 1},
+			},
+			3: greenplum.SegmentTablespaces{
+				1663: greenplum.TablespaceInfo{
+					Location:    "/tmp/primary2/tblspc1",
+					UserDefined: 0},
+				1664: greenplum.TablespaceInfo{
+					Location:    "/tmp/primary2/tblspc2",
+					UserDefined: 1},
+			},
 		}
-		hub := New(conf, grpc.DialContext, ".gpupgrade")
 
 		// The verifier function can be called in parallel, so use a channel to
 		// communicate which hosts were actually used.
-		hosts := make(chan string, len(targetCluster.PrimaryHostnames()))
+		hosts := make(chan string, len(conf.Target.PrimaryHostnames()))
 
 		expectedArgs := []string{
 			"--archive", "--compress", "--delete", "--stats",
@@ -247,6 +246,7 @@ func TestCopyMasterTablespaces(t *testing.T) {
 		}
 		execCommandVerifier(t, hosts, expectedArgs)
 
+		hub := New(conf, grpc.DialContext, ".gpupgrade")
 		err := hub.CopyMasterTablespaces(step.DevNullStream, "foobar/path")
 		if err != nil {
 			t.Errorf("copying master tablespace directories and mapping file: %+v", err)
@@ -258,19 +258,16 @@ func TestCopyMasterTablespaces(t *testing.T) {
 		verifyHosts(hosts, expectedHosts, t)
 	})
 
-	t.Run("CopyMasterTablespaces returns nil if there is no tablespaces", func(t *testing.T) {
-		conf := &Config{
-			Target: targetCluster,
-		}
-		hub := New(conf, grpc.DialContext, ".gpupgrade")
+	t.Run("CopyMasterTablespaces returns nil if there are no tablespaces", func(t *testing.T) {
 		// The verifier function can be called in parallel, so use a channel to
 		// communicate which hosts were actually used.
-
-		hosts := make(chan string, len(targetCluster.PrimaryHostnames()))
+		hosts := make(chan string, len(conf.Target.PrimaryHostnames()))
 
 		var expectedArgs []string
 		execCommandVerifier(t, hosts, expectedArgs)
 
+		conf.Source.Tablespaces = nil
+		hub := New(conf, grpc.DialContext, ".gpupgrade")
 		err := hub.CopyMasterTablespaces(step.DevNullStream, "foobar/path")
 		if err != nil {
 			t.Errorf("got %+v, want nil", err)
@@ -285,6 +282,8 @@ func TestCopyMasterTablespaces(t *testing.T) {
 }
 
 func verifyHosts(hosts chan string, expectedHosts []string, t *testing.T) {
+	t.Helper()
+
 	// Collect the hostnames for validation.
 	var actualHosts []string
 	for host := range hosts {
@@ -299,6 +298,8 @@ func verifyHosts(hosts chan string, expectedHosts []string, t *testing.T) {
 
 // Validate the rsync call and arguments.
 func execCommandVerifier(t *testing.T, hosts chan string, expectedArgs []string) {
+	t.Helper()
+
 	cmd := exectest.NewCommandWithVerifier(Success, func(name string, args ...string) {
 		expected := "rsync"
 		if name != expected {

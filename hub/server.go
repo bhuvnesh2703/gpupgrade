@@ -370,9 +370,6 @@ type Config struct {
 	TargetGPHome    string
 	UpgradeID       upgrade.ID
 
-	// Tablespaces contains the tablespace in the database keyed by
-	// dbid and tablespace oid
-	Tablespaces                greenplum.Tablespaces
 	TablespacesMappingFilePath string
 	TargetCatalogVersion       string
 }
